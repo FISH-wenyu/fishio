@@ -1,0 +1,19 @@
+{
+  "name": "Fishio",
+  "short_name": "Fishio",
+  "description": "Personal AI radio — Claude as brain, NCM for songs, ElevenLabs for voice.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230a0a0b'/><text x='96' y='128' font-family='monospace' font-size='110' fill='%236bd1a6' text-anchor='middle'>F</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

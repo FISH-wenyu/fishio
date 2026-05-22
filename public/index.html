@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>Fishio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css?v=3" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">Fishio</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-settings" title="Settings">⚙</button>
+      <div class="theme-switch" role="group">
+        <button data-theme-set="dark"  id="btn-theme-dark"  class="active">DARK</button>
+        <button data-theme-set="light" id="btn-theme-light">LIGHT</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="stage">
+
+    <!-- Hero: clock -->
+    <section class="hero panel" aria-label="Clock">
+      <div class="clock" id="clock">--:--</div>
+      <div class="clock-sub">
+        <div id="weekday">—</div>
+        <div id="date">—</div>
+        <div class="on-air"><span class="dot"></span> ON AIR</div>
+      </div>
+    </section>
+
+    <!-- Player -->
+    <section class="player panel" id="player-panel" aria-label="Now playing">
+      <div class="player-top">
+        <div class="cover-art" id="cover-art">
+          <div class="vis"><span></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="track-info">
+          <div class="track-title"  id="track">— nothing yet —</div>
+          <div class="track-status" id="status">IDLE</div>
+        </div>
+        <div class="controls">
+          <button class="ctrl" id="btn-prev"   title="Restart"     >⏮</button>
+          <button class="ctrl" id="btn-play"   title="Play / Pause">⏯</button>
+          <button class="ctrl" id="btn-next"   title="Skip"        >⏭</button>
+          <button class="ctrl" id="btn-stop"   title="Stop"        >■</button>
+          <button class="ctrl" id="btn-fav"    title="Favorite"    >♥</button>
+          <button class="ctrl" id="btn-lyric"  title="Lyric"       >Aa</button>
+          <button class="ctrl" id="btn-ban"    title="Never play this again">👎</button>
+          <button class="ctrl label" id="btn-hide" title="Collapse player UI">HIDE</button>
+          <div class="vol">
+            <span class="vol-icon">VOL</span>
+            <input id="vol" type="range" min="0" max="100" value="80" />
+          </div>
+        </div>
+      </div>
+      <div class="progress">
+        <span class="t" id="t-cur">0:00</span>
+        <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        <span class="t" id="t-dur">0:00</span>
+      </div>
+    </section>
+
+    <!-- Collapsed player chip (visible only when player is hidden) -->
+    <button class="player-chip" id="player-chip" hidden>
+      <span class="dot"></span><span id="chip-track">show player</span>
+    </button>
+
+    <!-- Lyric overlay (modal) -->
+    <div class="modal" id="lyric-modal" aria-hidden="true">
+      <div class="modal-scrim" data-close-lyric></div>
+      <div class="modal-dialog lyric-dialog">
+        <button class="icon-btn modal-close" data-close-lyric>×</button>
+        <h3 id="lyric-track-name">Lyric</h3>
+        <pre id="lyric-body">(loading)</pre>
+      </div>
+    </div>
+
+    <!-- Queue -->
+    <section class="queue panel" aria-label="Queue">
+      <header>
+        <span>QUEUE</span>
+        <span class="muted"><span id="q-count">0</span> TRACKS</span>
+      </header>
+      <ol id="queue"></ol>
+    </section>
+
+    <!-- Live log -->
+    <section class="log panel" aria-label="DJ log">
+      <header>
+        <span class="brand-mini"><span class="dot"></span> Fishio</span>
+        <span class="muted live" id="ws-state">CONNECTING…</span>
+      </header>
+      <div class="log-feed" id="log-feed">
+        <div class="log-meta">Connecting to Fishio server…</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Input -->
+  <form id="chat-form" class="input-bar">
+    <input id="chat-input" type="text" autocomplete="off" placeholder="Say something to the DJ…" />
+    <button type="button" class="icon-btn" id="btn-mic" title="Voice (coming soon)" disabled>🎤</button>
+    <button type="submit" class="send" id="btn-send">↑</button>
+  </form>
+
+  <!-- Footer line -->
+  <footer class="footer">
+    <span>FISHIO FM</span>
+    <span id="footer-state" class="muted">DISCONNECTED</span>
+  </footer>
+
+  <!-- DJ profile modal (opens on avatar click) -->
+  <div class="modal" id="dj-modal" aria-hidden="true">
+    <div class="modal-scrim" data-close></div>
+    <div class="modal-dialog" role="dialog" aria-labelledby="dj-modal-title">
+      <button class="icon-btn modal-close" data-close>×</button>
+      <header class="dj-header">
+        <div class="dj-avatar">F</div>
+        <div>
+          <div class="dj-name" id="dj-modal-title">Fishio</div>
+          <div class="dj-sub muted" id="dj-tagline">Your personal AI radio</div>
+        </div>
+      </header>
+
+      <section class="dj-block">
+        <h4>About me, the DJ</h4>
+        <p class="muted small">
+          Voice: <code id="me-voice">—</code><br>
+          Mood from outside: <span id="me-weather">—</span> · <code id="me-city">—</code>
+        </p>
+      </section>
+
+      <section class="dj-block">
+        <h4>About you</h4>
+        <div class="stat-grid">
+          <div><b id="me-today">0</b><span class="muted small">today</span></div>
+          <div><b id="me-total">0</b><span class="muted small">all-time</span></div>
+          <div><b id="me-favs">0</b><span class="muted small">favorites</span></div>
+          <div><b id="me-hidden">0</b><span class="muted small">hidden</span></div>
+        </div>
+        <p class="muted small" style="margin-top: 10px;">Most played:</p>
+        <ul id="me-artists" class="lib-list"></ul>
+      </section>
+
+      <section class="dj-block">
+        <h4>On your phone</h4>
+        <p class="muted small">Same WiFi · open one of these:</p>
+        <ul id="me-lan" class="lib-list"></ul>
+      </section>
+
+      <div class="modal-actions">
+        <button class="btn ghost"  id="modal-clear-history">Clear chat history</button>
+        <button class="btn ghost"  data-close>Close</button>
+        <button class="btn"        id="modal-open-settings">Open Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings drawer -->
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <header>
+      <span>Settings</span>
+      <button class="icon-btn" id="btn-close-settings">×</button>
+    </header>
+
+    <section>
+      <h3>Theme</h3>
+      <p class="muted">Use the DARK / LIGHT switch at the top.</p>
+    </section>
+
+    <section>
+      <h3>NetEase Music</h3>
+      <div id="ncm-status">Checking…</div>
+      <div id="ncm-qr" hidden>
+        <p class="muted">Open the NetEase Cloud Music app on your phone → tap the scan icon → point at this code.</p>
+        <img id="ncm-qrimg" alt="NetEase login QR" />
+        <p class="muted" id="ncm-qr-msg">Waiting for scan…</p>
+      </div>
+      <div class="row">
+        <button class="btn" id="btn-ncm-login">Scan to login</button>
+        <button class="btn ghost" id="btn-ncm-logout" hidden>Log out</button>
+      </div>
+      <p class="muted small">A VIP / 黑胶 account unlocks paid-catalog tracks (otherwise their stream URL is null and Fishio skips them).</p>
+    </section>
+
+    <section>
+      <h3>Autopilot</h3>
+      <p class="muted small">When the queue empties, the brain picks 2-3 more songs that fit the moment. Cooldown 30s.</p>
+      <label class="row">
+        <input type="checkbox" id="autopilot-toggle" />
+        <span>Auto-refill queue when empty</span>
+      </label>
+    </section>
+
+    <section>
+      <h3>Voice</h3>
+      <p class="muted small">Set in <code>.env</code> as <code>ELEVENLABS_VOICE_ID</code>. Current: <code id="voice-id">—</code></p>
+    </section>
+
+    <section>
+      <h3>Weather</h3>
+      <p class="muted small">City: <code id="weather-city">—</code> · Status: <span id="weather-status">—</span></p>
+    </section>
+
+    <section>
+      <h3>Favorites <span class="count" id="fav-count">0</span></h3>
+      <ul class="lib-list" id="fav-list"></ul>
+    </section>
+
+    <section>
+      <h3>Hidden <span class="count" id="bl-count">0</span></h3>
+      <ul class="lib-list" id="bl-list"></ul>
+    </section>
+
+    <section>
+      <h3>Taste</h3>
+      <p class="muted small">Edit <code>user/taste.md</code> in your project folder to retune. Fishio reads it on every turn.</p>
+    </section>
+
+    <section>
+      <h3>Import playlist</h3>
+      <p class="muted small">Paste one track per line — <code>Song - Artist</code>. Lines that start with <code>#</code> are ignored. Saved to <code>user/playlists.json</code> and fed to Fishio on every turn.</p>
+      <div class="row">
+        <label class="small muted">Bucket</label>
+        <select id="import-bucket">
+          <option value="favorites">favorites</option>
+          <option value="morning">morning</option>
+          <option value="work">work</option>
+          <option value="night">night</option>
+        </select>
+      </div>
+      <textarea id="import-text" placeholder="搁浅 - 周杰伦&#10;富士山下 - 陈奕迅&#10;..." rows="6"></textarea>
+      <div class="row">
+        <button class="btn" id="btn-import">Import</button>
+        <span class="muted small" id="import-result"></span>
+      </div>
+    </section>
+
+  </aside>
+  <div class="drawer-scrim" id="drawer-scrim" hidden></div>
+
+  <audio id="audio" preload="auto"></audio>
+  <audio id="tts-audio" preload="auto"></audio>
+
+  <!-- Version query string forces browsers that cache JS aggressively to re-fetch. Bump when you ship new logic. -->
+  <script src="/app.js?v=3" type="module"></script>
+</body>
+</html>

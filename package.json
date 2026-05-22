@@ -1,0 +1,21 @@
+{
+  "name": "fishio",
+  "version": "0.0.1",
+  "description": "Fishio — personal AI radio. Claude Code as brain, NetEase Music for songs, Fish Audio for voice.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "tunnel": "ngrok http 8080 --url=$NGROK_DOMAIN"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "NeteaseCloudMusicApi": "^4.32.0",
+    "node-cron": "^4.2.1",
+    "ws": "^8.20.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

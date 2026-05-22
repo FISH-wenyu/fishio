@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit
+.env
+.env.local
+
+# Runtime state (per-machine; contains play history, NCM cookie, queue, etc.)
+state/state.json
+state/*.db
+state/*.log
+state/*.out.log
+state/*.err.log
+state/*.err
+state/*.out
+
+# Hash-keyed TTS cache (can be regenerated)
+cache/
+
+# Logs
+*.log
+cloudflared.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Build / coverage (none today but reserved)
+dist/
+build/
+coverage/
