@@ -43,6 +43,7 @@ const playerPanelEl= $("player-panel");
 const playerChip   = $("player-chip");
 const chipTrack    = $("chip-track");
 const coverArt     = $("cover-art");
+const subtitle     = $("subtitle");
 const lyricModal   = $("lyric-modal");
 const lyricBody    = $("lyric-body");
 const lyricName    = $("lyric-track-name");
@@ -209,17 +210,11 @@ function renderQueue(list) {
     const who   = (t.artists || []).join(" / ");
     const main = document.createElement("span");
     main.className = "q-title";
+    // Queue: name + artist only — Fishio tells you the story in conversation
     main.textContent = who ? `${title} — ${who}` : title;
-    main.title = "Click to play this song now";
+    main.title = "Click to play now";
     main.addEventListener("click", () => jumpToIndex(i));
     li.appendChild(main);
-
-    if (t.reason) {
-      const w = document.createElement("span");
-      w.className = "why";
-      w.textContent = "· " + t.reason;
-      li.appendChild(w);
-    }
 
     const actions = document.createElement("span");
     actions.className = "q-actions";
@@ -290,6 +285,24 @@ function refreshFavButton() {
 
 // ── render: DJ log ────────────────────────────────────────────────────────
 let lastTtsByText = new Map(); // text → tts url, for replay
+
+/** Render the listener's own message as a right-aligned bubble. */
+function appendUserMsg(text) {
+  if (!text) return;
+  document.querySelector(".log-feed .log-meta")?.remove();
+  const wrap = document.createElement("div");
+  wrap.className = "msg user-msg";
+  wrap.innerHTML = `
+    <div class="avatar">U</div>
+    <div class="body">
+      <div class="who">YOU</div>
+      <div class="bubble">${escapeHtml(text)}</div>
+      <div class="row"><span>${fmtTime(Date.now())}</span></div>
+    </div>`;
+  elLog.appendChild(wrap);
+  elLog.scrollTop = elLog.scrollHeight;
+}
+
 function appendSayMsg(text, ts = Date.now(), ttsUrl = null) {
   if (!text) return;
   // remove the "connecting..." placeholder if present
@@ -311,7 +324,7 @@ function appendSayMsg(text, ts = Date.now(), ttsUrl = null) {
   const replayBtn = wrap.querySelector(".replay");
   const url = ttsUrl || lastTtsByText.get(text);
   if (!url) { replayBtn.disabled = true; replayBtn.style.opacity = "0.4"; }
-  replayBtn.addEventListener("click", () => { if (url) playTts(url); });
+  replayBtn.addEventListener("click", () => { if (url) playTts(url, text); });
 
   elLog.appendChild(wrap);
   elLog.scrollTop = elLog.scrollHeight;
@@ -350,25 +363,40 @@ function fadeAudio(targetVolume, durationMs = FADE_MS) {
   }, durationMs / steps);
 }
 
-// ── TTS playback — duck music, overlay voice, restore ─────────────────────
-function playTts(url) {
+// ── Floating subtitle ─────────────────────────────────────────────────────
+let subtitleTimer = null;
+function showSubtitle(text) {
+  if (!text || !subtitle) return;
+  clearTimeout(subtitleTimer);
+  subtitle.textContent = text;
+  subtitle.classList.add("visible");
+}
+function hideSubtitle() {
+  if (!subtitle) return;
+  subtitle.classList.remove("visible");
+  subtitleTimer = setTimeout(() => { subtitle.textContent = ""; }, 400);
+}
+
+// ── TTS playback — duck music, show subtitle, restore ─────────────────────
+function playTts(url, text = "") {
   if (!url) return;
-  ttsPlaying     = true;
+  ttsPlaying      = true;
   musicWasPlaying = !audio.paused && !!audio.src;
-  // Fade music DOWN — it keeps playing so there's no dead silence.
   fadeAudio(baseVolume * DUCK_RATIO);
+  showSubtitle(text);
   ttsAudio.src = url;
   ttsAudio.volume = 1.0;
   ttsAudio.play().catch((e) => {
     console.warn("tts autoplay blocked:", e);
     ttsPlaying = false;
-    fadeAudio(baseVolume);  // restore immediately if TTS can't start
+    fadeAudio(baseVolume);
+    hideSubtitle();
   });
 }
 ttsAudio.addEventListener("ended", () => {
   ttsPlaying = false;
-  // Fade music back UP — 600ms so it feels like a breath, not a snap.
   fadeAudio(baseVolume, 600);
+  hideSubtitle();
 });
 
 // ── audio: progress / pause UI ────────────────────────────────────────────
@@ -500,6 +528,7 @@ form.addEventListener("submit", async (e) => {
   input.value = "";
   btnSend.disabled = true;
   setStatus("thinking…");
+  appendUserMsg(text);
   try {
     const r = await fetch("/api/chat", {
       method: "POST",
@@ -681,10 +710,11 @@ function connectStream() {
         appendSayMsg(msg.text, msg.ts || Date.now()); break;
       case "tts":
         if (msg.text) lastTtsByText.set(msg.text, msg.url);
-        // attach the URL to the most recent message bubble if it matches
-        const lastBubble = elLog.querySelector(".msg:last-child .replay");
-        if (lastBubble) { lastBubble.disabled = false; lastBubble.style.opacity = "1"; }
-        playTts(msg.url);
+        { // block scope for lastBubble
+          const lastBubble = elLog.querySelector(".msg:last-child .replay");
+          if (lastBubble) { lastBubble.disabled = false; lastBubble.style.opacity = "1"; }
+        }
+        playTts(msg.url, msg.text || "");
         break;
       case "library":
         library = { favorites: msg.favorites || [], blacklist: msg.blacklist || [] };
@@ -827,7 +857,14 @@ if (SR) {
     btnMic.classList.add("listening");
   });
 } else {
-  btnMic.title = "Voice input not supported in this browser (try Chrome / Edge)";
+  // Web Speech API is Chrome/Edge-only and requires a secure context (HTTPS or
+  // localhost). If the user is on Firefox, Safari, or a plain http LAN URL, mic
+  // won't work. Show a helpful tooltip instead of silently staying disabled.
+  btnMic.title = "Voice input needs Chrome or Edge.\nOn LAN, use the ngrok HTTPS URL instead of the local IP.";
+  btnMic.style.opacity = "0.35";
+  btnMic.addEventListener("click", () => {
+    flashStatus("use chrome / ngrok url for mic");
+  });
 }
 
 // ── Playlist import (Settings drawer) ─────────────────────────────────────

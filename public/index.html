@@ -110,7 +110,7 @@
 
   <!-- Input -->
   <form id="chat-form" class="input-bar">
-    <input id="chat-input" type="text" autocomplete="off" placeholder="Say something to the DJ…" />
+    <input id="chat-input" type="text" autocomplete="off" placeholder="Talk to the DJ — ask for songs, moods, or just say hi…" />
     <button type="button" class="icon-btn" id="btn-mic" title="Voice (coming soon)" disabled>🎤</button>
     <button type="submit" class="send" id="btn-send">↑</button>
   </form>
@@ -250,6 +250,9 @@
 
   </aside>
   <div class="drawer-scrim" id="drawer-scrim" hidden></div>
+
+  <!-- Floating subtitle — fades in when TTS speaks, fades out on end -->
+  <div id="subtitle" class="subtitle" aria-live="polite"></div>
 
   <audio id="audio" preload="auto"></audio>
   <audio id="tts-audio" preload="auto"></audio>

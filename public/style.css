@@ -341,6 +341,45 @@ html[data-theme="light"] .panel {
 }
 .msg .row .replay:hover { color: var(--fg); border-color: var(--fg-2); }
 
+/* ───────── Floating subtitle ───────── */
+.subtitle {
+  position: fixed;
+  left: 50%; bottom: 110px;
+  transform: translateX(-50%);
+  max-width: min(600px, 88vw);
+  padding: 10px 20px;
+  background: rgba(10,10,11,0.85);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 15px; line-height: 1.55;
+  text-align: center;
+  border: 1px solid var(--accent-2);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.35s ease;
+  z-index: 50;
+}
+html[data-theme="light"] .subtitle {
+  background: rgba(250,250,247,0.92);
+  color: var(--accent);
+}
+.subtitle.visible { opacity: 1; }
+
+/* ───────── User messages in log ───────── */
+.msg.user-msg {
+  flex-direction: row-reverse;
+}
+.msg.user-msg .body { text-align: right; }
+.msg.user-msg .bubble {
+  background: var(--panel-2);
+  border-color: var(--border);
+  color: var(--fg-2);
+}
+.msg.user-msg .avatar {
+  background: var(--border); color: var(--muted);
+}
+
 /* ───────── Input ───────── */
 .input-bar {
   position: fixed; left: 0; right: 0; bottom: 32px;
