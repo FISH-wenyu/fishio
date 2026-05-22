@@ -44,6 +44,11 @@ const playerChip   = $("player-chip");
 const chipTrack    = $("chip-track");
 const coverArt     = $("cover-art");
 const subtitle     = $("subtitle");
+const introPanel   = $("intro-panel");
+const introWave    = $("intro-wave");
+const introSay     = $("intro-say");
+const introTracks  = $("intro-tracks");
+const introClose   = $("intro-close");
 const lyricModal   = $("lyric-modal");
 const lyricBody    = $("lyric-body");
 const lyricName    = $("lyric-track-name");
@@ -343,7 +348,7 @@ function appendNowPlayingLine(t) {
 // When the DJ speaks, we fade the music DOWN to DUCK_RATIO of its current
 // volume so the voice is clearly audible without the music stopping.
 // After TTS ends, we fade the music back up to the user's chosen level.
-const DUCK_RATIO  = 0.15;   // music drops to 15% while DJ speaks
+const DUCK_RATIO  = 0.40;   // music drops to 40% while DJ speaks
 const FADE_MS     = 500;    // 0.5s fade in / out feels natural
 let duckTimer = null;
 
@@ -363,16 +368,95 @@ function fadeAudio(targetVolume, durationMs = FADE_MS) {
   }, durationMs / steps);
 }
 
+// ── Intro panel (bottom sheet with typewriter + animated waveform) ─────────
+let lastSayText = "";
+let lastSayTs   = 0;
+let introCloseTimer = null;
+let typewriteTimer  = null;
+
+function buildWave() {
+  introWave.innerHTML = "";
+  const count = Math.round(introWave.offsetWidth / 5) || 60;
+  for (let i = 0; i < count; i++) {
+    const b = document.createElement("div");
+    b.className = "intro-wave-bar";
+    const lo  = 8  + Math.random() * 16;
+    const hi  = 30 + Math.random() * 50;
+    const dur = 0.45 + Math.random() * 1.1;
+    const del = -(Math.random() * 2).toFixed(2);
+    b.style.cssText = `--lo:${lo}px;--hi:${hi}px;--dur:${dur}s;--del:${del}s`;
+    introWave.appendChild(b);
+  }
+}
+
+function typewrite(el, text, msPerWord, onDone) {
+  clearInterval(typewriteTimer);
+  el.innerHTML = '<span class="cursor"></span>';
+  const words = text.split(" ");
+  let i = 0;
+  const cursor = el.querySelector(".cursor");
+  typewriteTimer = setInterval(() => {
+    if (i < words.length) {
+      el.insertBefore(document.createTextNode((i > 0 ? " " : "") + words[i]), cursor);
+      i++;
+    } else {
+      clearInterval(typewriteTimer);
+      cursor.remove();
+      onDone?.();
+    }
+  }, msPerWord);
+}
+
+function openIntro(sayText, tracks) {
+  clearTimeout(introCloseTimer);
+  clearInterval(typewriteTimer);
+  introSay.innerHTML = "";
+  introTracks.innerHTML = "";
+  buildWave();
+  introPanel.setAttribute("aria-hidden", "false");
+  // Typewrite the say text at ~40ms/word — comfortable reading pace
+  typewrite(introSay, sayText || "Here's what's coming up.", 42, () => {
+    // After text done, reveal tracks one by one
+    (tracks || []).forEach((t, idx) => {
+      setTimeout(() => {
+        const li = document.createElement("li");
+        const name   = t.name   || t.query || "?";
+        const artist = (t.artists || []).join(" / ");
+        li.innerHTML = `
+          <span class="num">${idx + 1}</span>
+          <span class="meta">
+            <div class="song-name">${escapeHtml(name)}</div>
+            <div class="song-artist">${escapeHtml(artist)}</div>
+          </span>`;
+        introTracks.appendChild(li);
+        requestAnimationFrame(() => requestAnimationFrame(() => li.classList.add("show")));
+      }, idx * 280);
+    });
+    // Auto-close after all tracks shown + pause
+    const closeMsAfterDone = (tracks?.length || 0) * 280 + 3500;
+    introCloseTimer = setTimeout(closeIntro, closeMsAfterDone);
+  });
+}
+
+function closeIntro() {
+  clearTimeout(introCloseTimer);
+  introPanel.setAttribute("aria-hidden", "true");
+}
+
+introClose.addEventListener("click", closeIntro);
+$("intro-backdrop").addEventListener("click", closeIntro);
+
 // ── Floating subtitle ─────────────────────────────────────────────────────
 let subtitleTimer = null;
 function showSubtitle(text) {
-  if (!text || !subtitle) return;
+  if (!text) return;
   clearTimeout(subtitleTimer);
   subtitle.textContent = text;
+  // Force a reflow so the transition triggers correctly
+  subtitle.offsetHeight;
   subtitle.classList.add("visible");
 }
 function hideSubtitle() {
-  if (!subtitle) return;
   subtitle.classList.remove("visible");
   subtitleTimer = setTimeout(() => { subtitle.textContent = ""; }, 400);
 }
@@ -705,8 +789,19 @@ function connectStream() {
       case "enqueue":
       case "advance":
         if (msg.type === "advance" && msg.current) appendNowPlayingLine(msg.current);
-        renderNow(msg.current); renderQueue(msg.queue || []); break;
+        renderNow(msg.current); renderQueue(msg.queue || []);
+        // Show intro panel when new songs are queued with a recent DJ say
+        if (msg.type === "enqueue") {
+          const newTracks = msg.tracks || [];
+          const recentSay = lastSayText && (Date.now() - lastSayTs < 20_000);
+          if (newTracks.length > 0) {
+            openIntro(recentSay ? lastSayText : "", newTracks);
+          }
+        }
+        break;
       case "say":
+        lastSayText = msg.text || "";
+        lastSayTs   = Date.now();
         appendSayMsg(msg.text, msg.ts || Date.now()); break;
       case "tts":
         if (msg.text) lastTtsByText.set(msg.text, msg.url);

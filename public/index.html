@@ -251,7 +251,21 @@
   </aside>
   <div class="drawer-scrim" id="drawer-scrim" hidden></div>
 
-  <!-- Floating subtitle — fades in when TTS speaks, fades out on end -->
+  <!-- DJ introduction bottom sheet — slides up when new songs are queued -->
+  <div id="intro-panel" class="intro-panel" aria-hidden="true">
+    <div class="intro-backdrop" id="intro-backdrop"></div>
+    <div class="intro-card" id="intro-card">
+      <div class="intro-wave" id="intro-wave"></div>
+      <div class="intro-body">
+        <div class="intro-label"><span class="dot anim"></span> ON AIR</div>
+        <p class="intro-say" id="intro-say"></p>
+        <ul class="intro-tracks" id="intro-tracks"></ul>
+      </div>
+      <button class="intro-close" id="intro-close">×</button>
+    </div>
+  </div>
+
+  <!-- Floating subtitle — visible during TTS playback -->
   <div id="subtitle" class="subtitle" aria-live="polite"></div>
 
   <audio id="audio" preload="auto"></audio>
