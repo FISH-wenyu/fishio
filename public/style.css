@@ -203,13 +203,20 @@ html[data-theme="light"] .panel {
   width: 32px; height: 32px;
   font-size: 14px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
+  touch-action: manipulation;       /* kill 300ms tap delay on mobile */
+  -webkit-tap-highlight-color: transparent;
 }
 .ctrl.label {
   width: auto; padding: 0 8px;
   font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
   color: var(--muted);
 }
-.ctrl:hover { background: var(--panel-2); color: var(--fg); }
+/* hover only on devices that actually hover — touch devices skip this so
+   the button doesn't get "stuck" on the last-tapped state */
+@media (hover: hover) {
+  .ctrl:hover { background: var(--panel-2); color: var(--fg); }
+}
+.ctrl:active { background: var(--panel-2); color: var(--accent); }
 .ctrl.active { color: var(--accent); }
 .ctrl#btn-fav.active { color: #ff7a93; }
 
@@ -540,6 +547,10 @@ html[data-theme="light"] .intro-close { background: rgba(0,0,0,0.07); border-col
   opacity: 0;
   transition: opacity 0.45s ease;
   z-index: 90;
+  /* CRITICAL: when subtitle is invisible (no lyrics yet), it must NOT capture
+     taps — otherwise it sits on top of the player and steals every tap. Only
+     enable pointer-events when actually showing a lyric line. */
+  pointer-events: none;
   touch-action: none;
 }
 html[data-theme="light"] .subtitle {
@@ -549,7 +560,7 @@ html[data-theme="light"] .subtitle {
     0 0 14px rgba(255,255,255,0.85),
     0 0 28px rgba(255,255,255,0.6);
 }
-.subtitle.visible { opacity: 1; }
+.subtitle.visible { opacity: 1; pointer-events: auto; }
 .subtitle.dragging { cursor: grabbing; opacity: 0.75; transition: none; }
 
 /* ───────── Input ───────── */
@@ -771,30 +782,58 @@ html[data-theme="light"] .subtitle {
 #me-lan li:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ───────── Mobile polish ───────── */
+/* ───────── Mobile (single consolidated block) ───────── */
 @media (max-width: 520px) {
-  .topbar { padding: 10px 14px; }
+  .topbar     { padding: 10px 14px; }
   .brand-name { font-size: 22px; }
-  .controls { gap: 2px; justify-content: center; }
-  .ctrl { width: 28px; height: 28px; font-size: 13px; }
-  .ctrl.label { padding: 0 6px; font-size: 9px; }
-  .vol input[type=range] { width: 50px; }
-  .progress { grid-template-columns: 36px 1fr 36px; font-size: 10px; }
-  .log-feed { max-height: 280px; }
-  .input-bar { padding: 8px 12px; }
-  .input-bar input { padding: 10px 14px; font-size: 14px; }
-  .input-bar .send, .input-bar .icon-btn { width: 36px; height: 36px; }
-  .footer { padding: 6px 14px; font-size: 9px; }
-  .modal-dialog { padding: 18px; }
-  .stat-grid { grid-template-columns: repeat(2, 1fr); }
-}
+  .stage      { padding: 12px 14px 40px; }
+  .panel      { padding: 14px; }
+  .hero       { padding: 28px 12px 22px; }
+  .clock      { font-size: clamp(72px, 22vw, 120px); }
 
-/* mobile */
-@media (max-width: 520px) {
-  .player-top { grid-template-columns: 1fr; }
-  .controls { flex-wrap: wrap; }
-  .vol { margin-left: 0; }
-  .stage { padding: 12px 14px 40px; }
-  .panel { padding: 14px; }
-  .hero { padding: 28px 12px 22px; }
-  .clock { font-size: clamp(72px, 22vw, 120px); }
+  /* Player: stack cover + meta + controls vertically */
+  .player-top { grid-template-columns: 1fr; gap: 12px; }
+  .cover-art  { width: 80px; height: 80px; }
+
+  .controls {
+    gap: 6px; row-gap: 8px;
+    flex-wrap: wrap;                  /* let buttons drop to a second row */
+    justify-content: center;
+  }
+  /* Big, finger-friendly hit targets (Apple HIG minimum 44pt) */
+  .ctrl { width: 44px; height: 44px; font-size: 17px; }
+  .ctrl.label { width: auto; height: 44px; padding: 0 12px; font-size: 11px; }
+
+  /* Volume on its own full-width row so it doesn't crowd buttons */
+  .vol { width: 100%; justify-content: center; margin: 4px 0 0; }
+  .vol input[type=range] { width: 160px; height: 28px; }
+  .vol input[type=range]::-webkit-slider-thumb { width: 20px; height: 20px; }
+
+  /* Progress bar — thicker for easier seek tap */
+  .progress { grid-template-columns: 36px 1fr 36px; font-size: 10px; }
+  .bar      { height: 6px; }
+
+  /* Log + chat input — 16px font kills iOS auto-zoom on focus */
+  .log-feed         { max-height: 280px; }
+  .input-bar        { padding: 8px 12px; }
+  .input-bar input  { padding: 12px 16px; font-size: 16px; }
+  .input-bar .send,
+  .input-bar .icon-btn { width: 44px; height: 44px; }
+
+  .footer       { padding: 6px 14px; font-size: 9px; }
+  .modal-dialog { padding: 18px; }
+  .stat-grid    { grid-template-columns: repeat(2, 1fr); }
+
+  /* Intro card — fills the screen sensibly on phone, not covering nav */
+  .intro-card  { top: 70px; left: 12px; right: 12px; width: auto; height: 64vh; max-height: 64vh; }
+  .intro-close { width: 40px; height: 40px; font-size: 22px; }
+
+  /* Queue: bigger taps, drag handle hidden (use buttons instead) */
+  .q-row     { padding: 10px 8px; padding-left: 30px; gap: 10px; }
+  .q-actions { opacity: 1 !important; gap: 6px; }
+  .q-btn     { width: 32px; height: 32px; font-size: 13px; }
+  .q-handle  { display: none; }
+
+  /* Chat bubbles — bigger comfortable size */
+  .msg .bubble { font-size: 15px; }
 }
