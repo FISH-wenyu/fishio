@@ -157,7 +157,10 @@ function renderNow(t) {
     audio.src = t.url;
     lastUrl = t.url;
     if (!ttsPlaying) {
-      audio.play().catch(() => setStatus("tap play"));
+      audio.play().catch(() => {
+        setStatus("tap to start");
+        showTapToStart();
+      });
     }
   }
   refreshFavButton();
@@ -1155,6 +1158,35 @@ elLog.addEventListener("click", (e) => {
   const av = e.target.closest(".avatar");
   if (av) openDjModal();
 });
+
+// ── Tap-to-start overlay — mobile autoplay policies need a user gesture ──
+let tapOverlay = null;
+function showTapToStart() {
+  if (tapOverlay) return;
+  tapOverlay = document.createElement("div");
+  tapOverlay.className = "tap-to-start";
+  tapOverlay.innerHTML = `
+    <div class="tap-card">
+      <div class="tap-pulse"></div>
+      <div class="tap-text">Tap to start</div>
+      <div class="tap-sub">YOUR PHONE NEEDS A TAP BEFORE AUDIO CAN PLAY</div>
+    </div>`;
+  tapOverlay.addEventListener("click", async () => {
+    // Try to start the main audio. On iOS, even one successful play() unblocks
+    // all subsequent <audio> playback for this page session.
+    try {
+      if (audio.src) {
+        await audio.play();
+      } else {
+        // Force the audio element to be "user-activated" with a silent tick.
+        audio.muted = true; await audio.play().catch(() => {}); audio.muted = false;
+      }
+    } catch (e) { console.warn("[tap] play failed:", e.message); }
+    tapOverlay?.remove();
+    tapOverlay = null;
+  });
+  document.body.appendChild(tapOverlay);
+}
 
 // ── Service worker (lets phones "Add to Home Screen" cleanly) ─────────────
 if ("serviceWorker" in navigator) {
