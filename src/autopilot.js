@@ -28,7 +28,15 @@ let inflight    = false;
 let runtimeOff  = process.env.AUTOPILOT_OFF === "1";
 let started     = false;
 
-const PROMPT = `The queue is running thin. Pick EXACTLY ${REFILL_COUNT} songs (no fewer!) that fit the current time of day, the weather, and what's been played recently. Lean on the listener's anchor artists; avoid anything in the blacklist or already played in the last 30 minutes. Lead with one short DJ line — under 20 words.`;
+const PROMPT = `The queue is running thin. Pick EXACTLY ${REFILL_COUNT} FRESH songs (no fewer!) that fit the current time of day, the weather, and what's been played recently.
+
+CRITICAL — NO REPEATS:
+- Do NOT pick anything currently in the queue (you'll see the list above).
+- Do NOT pick anything played in the last 60 minutes.
+- Do NOT pick anything in the blacklist.
+- Rotate among the listener's anchor artists — don't keep recommending the same 3 songs.
+
+Lean on variety. Lead with 2-3 sentences referencing the time, weather, or a specific song's story.`;
 
 export function setAutopilotOff(off) { runtimeOff = !!off; }
 export function isAutopilotOff()     { return runtimeOff; }

@@ -44,11 +44,13 @@ const playerChip   = $("player-chip");
 const chipTrack    = $("chip-track");
 const coverArt     = $("cover-art");
 const subtitle     = $("subtitle");
-const introPanel   = $("intro-panel");
-const introWave    = $("intro-wave");
-const introSay     = $("intro-say");
-const introTracks  = $("intro-tracks");
-const introClose   = $("intro-close");
+const introPanel    = $("intro-panel");
+const introWave     = $("intro-wave");
+const introMoodEl   = $("intro-mood");
+const introNowSong  = $("intro-now-song");
+const introNowArtist= $("intro-now-artist");
+const introLog      = $("intro-log");
+const introClose    = $("intro-close");
 const lyricModal   = $("lyric-modal");
 const lyricBody    = $("lyric-body");
 const lyricName    = $("lyric-track-name");
@@ -127,11 +129,10 @@ tickClock();
 setInterval(tickClock, 1000);
 
 // ── render: track + queue ─────────────────────────────────────────────────
+let prevCurrentId = null;
 function renderNow(t) {
   current = t;
   if (!t) {
-    // Don't show an ugly "nothing yet" placeholder — autopilot will refill
-    // shortly. Use a neutral hint.
     elTrack.textContent = "queueing up…";
     chipTrack.textContent = "show player";
     setStatus("waiting");
@@ -139,6 +140,7 @@ function renderNow(t) {
     lastUrl = null;
     setCoverArt(null);
     refreshFavButton();
+    if (prevCurrentId !== null) { prevCurrentId = null; loadLyricFor(null); }
     return;
   }
   const title = t.name || t.query || "(unknown)";
@@ -147,6 +149,10 @@ function renderNow(t) {
   chipTrack.textContent = `${title}${who ? " · " + who : ""}`;
   setCoverArt(t.picUrl || null);
   setStatus("playing");
+  if (t.id !== prevCurrentId) {
+    prevCurrentId = t.id;
+    loadLyricFor(t.id);
+  }
   if (t.url && t.url !== lastUrl) {
     audio.src = t.url;
     lastUrl = t.url;
@@ -368,11 +374,12 @@ function fadeAudio(targetVolume, durationMs = FADE_MS) {
   }, durationMs / steps);
 }
 
-// ── Intro panel (bottom sheet with typewriter + animated waveform) ─────────
+// ── Intro panel (radio-show-style card; manual close only) ────────────────
+// Stays open until you dismiss it. If a fresh refill happens while the panel
+// is already open, the content is swapped in place (no flicker).
 let lastSayText = "";
 let lastSayTs   = 0;
-let introCloseTimer = null;
-let typewriteTimer  = null;
+let revealTimers = [];
 
 function buildWave() {
   introWave.innerHTML = "";
@@ -389,104 +396,228 @@ function buildWave() {
   }
 }
 
-function typewrite(el, text, msPerWord, onDone) {
-  clearInterval(typewriteTimer);
-  el.innerHTML = '<span class="cursor"></span>';
-  const words = text.split(" ");
-  let i = 0;
-  const cursor = el.querySelector(".cursor");
-  typewriteTimer = setInterval(() => {
-    if (i < words.length) {
-      el.insertBefore(document.createTextNode((i > 0 ? " " : "") + words[i]), cursor);
-      i++;
-    } else {
-      clearInterval(typewriteTimer);
-      cursor.remove();
-      onDone?.();
-    }
-  }, msPerWord);
+// Split "Late Thursday. Quiet outside. Here's something soft." into sentences.
+function splitSentences(text) {
+  if (!text) return [];
+  return text
+    .split(/(?<=[.!?。!?])\s+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function fmtTs(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function addLogEntry(text, tsLabel) {
+  const wrap = document.createElement("div");
+  wrap.className = "intro-log-entry";
+  wrap.innerHTML = `
+    <div class="intro-log-meta">Fishio · ${tsLabel}</div>
+    <div class="intro-log-text"></div>`;
+  wrap.querySelector(".intro-log-text").textContent = text;
+  introLog.appendChild(wrap);
+  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add("show")));
+  introLog.scrollTop = introLog.scrollHeight;
 }
 
 function openIntro(sayText, tracks) {
-  clearTimeout(introCloseTimer);
-  clearInterval(typewriteTimer);
-  introSay.innerHTML = "";
-  introTracks.innerHTML = "";
+  // Cancel any pending sentence-reveals from a prior open
+  for (const id of revealTimers) clearTimeout(id);
+  revealTimers = [];
+  introLog.innerHTML = "";
+
+  // Hero — show the first newly queued track as the "now playing" focus
+  const first = tracks?.[0];
+  introMoodEl.textContent  = first ? "Up Next" : "Now Playing";
+  introNowSong.textContent  = first ? (first.name || first.query || "") : "";
+  introNowArtist.textContent= first ? (first.artists || []).join(" / ") : "";
+
   buildWave();
   introPanel.setAttribute("aria-hidden", "false");
-  // Typewrite the say text at ~40ms/word — comfortable reading pace
-  typewrite(introSay, sayText || "Here's what's coming up.", 42, () => {
-    // After text done, reveal tracks one by one
-    (tracks || []).forEach((t, idx) => {
-      setTimeout(() => {
-        const li = document.createElement("li");
-        const name   = t.name   || t.query || "?";
-        const artist = (t.artists || []).join(" / ");
-        li.innerHTML = `
-          <span class="num">${idx + 1}</span>
-          <span class="meta">
-            <div class="song-name">${escapeHtml(name)}</div>
-            <div class="song-artist">${escapeHtml(artist)}</div>
-          </span>`;
-        introTracks.appendChild(li);
-        requestAnimationFrame(() => requestAnimationFrame(() => li.classList.add("show")));
-      }, idx * 280);
-    });
-    // Auto-close after all tracks shown + pause
-    const closeMsAfterDone = (tracks?.length || 0) * 280 + 3500;
-    introCloseTimer = setTimeout(closeIntro, closeMsAfterDone);
+
+  // Sentence stream — each sentence appears with a fake timestamp,
+  // pacing roughly matches TTS reading speed (~3 words/sec).
+  const sentences = splitSentences(sayText);
+  let cursorSec = 0;
+  sentences.forEach((s) => {
+    const at = cursorSec;
+    const tid = setTimeout(() => {
+      addLogEntry(s, fmtTs(at));
+    }, at * 1000);
+    revealTimers.push(tid);
+    const words = s.split(/\s+/).length;
+    cursorSec += Math.max(1.6, words * 0.34);
   });
+  // After the say is done, list the remaining tracks
+  const restTracks = (tracks || []).slice(1);
+  if (restTracks.length) {
+    const at = cursorSec + 0.6;
+    const tid = setTimeout(() => {
+      const txt = "Up next: " + restTracks.map(t => `${t.name || t.query}${t.artists?.length ? " — " + t.artists.join(", ") : ""}`).join(" · ");
+      addLogEntry(txt, fmtTs(at));
+    }, at * 1000);
+    revealTimers.push(tid);
+  }
 }
 
 function closeIntro() {
-  clearTimeout(introCloseTimer);
+  for (const id of revealTimers) clearTimeout(id);
+  revealTimers = [];
   introPanel.setAttribute("aria-hidden", "true");
 }
 
 introClose.addEventListener("click", closeIntro);
 $("intro-backdrop").addEventListener("click", closeIntro);
 
-// ── Floating subtitle ─────────────────────────────────────────────────────
-let subtitleTimer = null;
-function showSubtitle(text) {
-  if (!text) return;
-  clearTimeout(subtitleTimer);
-  subtitle.textContent = text;
-  // Force a reflow so the transition triggers correctly
-  subtitle.offsetHeight;
-  subtitle.classList.add("visible");
-}
-function hideSubtitle() {
-  subtitle.classList.remove("visible");
-  subtitleTimer = setTimeout(() => { subtitle.textContent = ""; }, 400);
+// ── Lyric overlay (synced to the music, draggable, no panel) ──────────────
+let lyricLines       = [];   // [{ ts: seconds, text }] sorted ascending
+let lyricCurrentIdx  = -1;
+let lyricFetchFor    = null; // track id we're currently fetching for (race guard)
+
+function parseLrc(raw) {
+  const out = [];
+  for (const line of String(raw || "").split("\n")) {
+    // Each LRC line may carry multiple timestamps for repeated choruses.
+    const tags = [...line.matchAll(/\[(\d+):(\d+)(?:\.(\d+))?\]/g)];
+    if (!tags.length) continue;
+    const last = tags[tags.length - 1];
+    const text = line.substring(last.index + last[0].length).trim();
+    if (!text) continue;
+    for (const m of tags) {
+      const ts = +m[1] * 60 + +m[2] + (m[3] ? +`0.${m[3]}` : 0);
+      out.push({ ts, text });
+    }
+  }
+  return out.sort((a, b) => a.ts - b.ts);
 }
 
-// ── TTS playback — duck music, show subtitle, restore ─────────────────────
-function playTts(url, text = "") {
+async function loadLyricFor(trackId) {
+  lyricLines = [];
+  lyricCurrentIdx = -1;
+  subtitle.classList.remove("visible");
+  if (!trackId) return;
+  lyricFetchFor = trackId;
+  try {
+    const r = await fetch(`/api/lyric?id=${encodeURIComponent(trackId)}`).then(r => r.json());
+    if (lyricFetchFor !== trackId) return; // user switched songs mid-fetch
+    lyricLines = parseLrc(r.raw || "");
+  } catch (e) {
+    console.warn("[lyric] load failed:", e.message);
+  }
+}
+
+function setLyricLine(text) {
+  if (!text) {
+    subtitle.classList.remove("visible");
+    return;
+  }
+  if (subtitle.textContent === text) return; // no-op if unchanged
+  // cross-fade: fade out → swap text → fade in
+  subtitle.classList.remove("visible");
+  setTimeout(() => {
+    subtitle.textContent = text;
+    subtitle.offsetHeight; // force reflow
+    subtitle.classList.add("visible");
+  }, 220);
+}
+
+function tickLyric() {
+  if (!lyricLines.length) return;
+  const t = audio.currentTime || 0;
+  // find latest line whose ts <= t
+  let idx = -1;
+  for (let i = lyricLines.length - 1; i >= 0; i--) {
+    if (lyricLines[i].ts <= t) { idx = i; break; }
+  }
+  if (idx !== lyricCurrentIdx) {
+    lyricCurrentIdx = idx;
+    setLyricLine(idx >= 0 ? lyricLines[idx].text : "");
+  }
+}
+
+// ── Subtitle drag — single shared position across songs, persists ─────────
+const SAVED_POS_KEY = "fishio.subtitlePos";
+function applySavedPos() {
+  try {
+    const p = JSON.parse(localStorage.getItem(SAVED_POS_KEY) || "null");
+    if (p && p.left != null && p.top != null) {
+      subtitle.style.left = p.left;
+      subtitle.style.top  = p.top;
+      subtitle.style.bottom = "auto";
+      subtitle.style.transform = "none";
+    }
+  } catch {}
+}
+applySavedPos();
+
+let dragOffset = null;
+function dragStart(e) {
+  const point = e.touches ? e.touches[0] : e;
+  if (!point) return;
+  if (e.cancelable) e.preventDefault();
+  const rect = subtitle.getBoundingClientRect();
+  dragOffset = { x: point.clientX - rect.left, y: point.clientY - rect.top };
+  subtitle.classList.add("dragging");
+  document.addEventListener("mousemove", dragMove);
+  document.addEventListener("mouseup",   dragEnd);
+  document.addEventListener("touchmove", dragMove, { passive: false });
+  document.addEventListener("touchend",  dragEnd);
+}
+function dragMove(e) {
+  if (!dragOffset) return;
+  const point = e.touches ? e.touches[0] : e;
+  if (!point) return;
+  if (e.cancelable) e.preventDefault();
+  const x = point.clientX - dragOffset.x;
+  const y = point.clientY - dragOffset.y;
+  subtitle.style.left = x + "px";
+  subtitle.style.top  = y + "px";
+  subtitle.style.bottom = "auto";
+  subtitle.style.transform = "none";
+}
+function dragEnd() {
+  if (!dragOffset) return;
+  dragOffset = null;
+  subtitle.classList.remove("dragging");
+  document.removeEventListener("mousemove", dragMove);
+  document.removeEventListener("mouseup",   dragEnd);
+  document.removeEventListener("touchmove", dragMove);
+  document.removeEventListener("touchend",  dragEnd);
+  localStorage.setItem(SAVED_POS_KEY, JSON.stringify({
+    left: subtitle.style.left,
+    top:  subtitle.style.top,
+  }));
+}
+subtitle.addEventListener("mousedown",  dragStart);
+subtitle.addEventListener("touchstart", dragStart, { passive: false });
+
+// ── TTS playback — duck music, restore (subtitle is for lyrics now) ──────
+function playTts(url, _text = "") {
   if (!url) return;
   ttsPlaying      = true;
   musicWasPlaying = !audio.paused && !!audio.src;
   fadeAudio(baseVolume * DUCK_RATIO);
-  showSubtitle(text);
   ttsAudio.src = url;
   ttsAudio.volume = 1.0;
   ttsAudio.play().catch((e) => {
     console.warn("tts autoplay blocked:", e);
     ttsPlaying = false;
     fadeAudio(baseVolume);
-    hideSubtitle();
   });
 }
 ttsAudio.addEventListener("ended", () => {
   ttsPlaying = false;
   fadeAudio(baseVolume, 600);
-  hideSubtitle();
 });
 
 // ── audio: progress / pause UI ────────────────────────────────────────────
 audio.addEventListener("timeupdate", () => {
   elTCur.textContent = fmtDur(audio.currentTime);
   if (audio.duration) elBarFill.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+  tickLyric();
 });
 audio.addEventListener("loadedmetadata", () => {
   elTDur.textContent = fmtDur(audio.duration);

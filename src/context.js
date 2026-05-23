@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getMessages, getPlays, getFavorites, getBlacklist } from "./state.js";
+import { getMessages, getPlays, getFavorites, getBlacklist, getQueue } from "./state.js";
 import { getSnapshot as getWeather } from "./weather.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -71,6 +71,16 @@ function blacklistList() {
   return bl.slice(-30).map(b => `- ${b.query}`).join("\n");
 }
 
+function currentQueueList() {
+  const q = getQueue();
+  if (!q.length) return "(empty)";
+  return q.map(t => {
+    const name = t.name || t.query || "?";
+    const artist = (t.artists || []).join(", ");
+    return `- ${name}${artist ? " — " + artist : ""}`;
+  }).join("\n");
+}
+
 function recentDialogue() {
   const msgs = getMessages(10);
   if (!msgs.length) return "(空)";
@@ -100,6 +110,9 @@ export async function buildPrompt({ trigger = "user", input }) {
     "",
     "# Environment",
     env,
+    "",
+    "# Already in the queue — DO NOT pick any of these (they're already lined up)",
+    currentQueueList(),
     "",
     "# Recently played (avoid repeating)",
     plays,

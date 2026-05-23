@@ -251,17 +251,20 @@
   </aside>
   <div class="drawer-scrim" id="drawer-scrim" hidden></div>
 
-  <!-- DJ introduction bottom sheet — slides up when new songs are queued -->
+  <!-- DJ introduction card — slides up when new songs are queued -->
+  <!-- Stays open until you close it; if a fresh batch arrives, content swaps. -->
   <div id="intro-panel" class="intro-panel" aria-hidden="true">
     <div class="intro-backdrop" id="intro-backdrop"></div>
     <div class="intro-card" id="intro-card">
       <div class="intro-wave" id="intro-wave"></div>
-      <div class="intro-body">
+      <div class="intro-hero">
         <div class="intro-label"><span class="dot anim"></span> ON AIR</div>
-        <p class="intro-say" id="intro-say"></p>
-        <ul class="intro-tracks" id="intro-tracks"></ul>
+        <h2 class="intro-mood" id="intro-mood">Now Playing</h2>
+        <div class="intro-now-song"  id="intro-now-song"></div>
+        <div class="intro-now-artist" id="intro-now-artist"></div>
       </div>
-      <button class="intro-close" id="intro-close">×</button>
+      <div class="intro-log" id="intro-log"></div>
+      <button class="intro-close" id="intro-close" title="Close">×</button>
     </div>
   </div>
 
