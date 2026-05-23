@@ -259,14 +259,15 @@ export function removeFromBlacklist(track) {
 }
 
 /**
- * Return the current track, refreshing its stream URL if it has gone stale.
- * Use this in HTTP / WS responses instead of getCurrent() so the client never
- * receives an expired URL (which silently truncates playback after ~5s).
+ * Return the current track, refreshing its stream URL if it has gone stale
+ * OR if it's still http:// (which mobile / public HTTPS pages block as mixed
+ * content — see ncm.js toHttps). The refresher returns https URLs.
  */
 export async function currentWithFreshUrl() {
   if (!cache.current || !cache.current.id) return cache.current;
-  const age = Date.now() - (cache.current.url_at || 0);
-  if (cache.current.url && age < URL_TTL_MS) return cache.current;
+  const age    = Date.now() - (cache.current.url_at || 0);
+  const isHttp = cache.current.url && cache.current.url.startsWith("http://");
+  if (cache.current.url && age < URL_TTL_MS && !isHttp) return cache.current;
   const fresh = await refreshUrl(cache.current.id);
   if (fresh) {
     cache.current.url = fresh;
