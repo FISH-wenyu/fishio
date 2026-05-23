@@ -560,7 +560,13 @@ html[data-theme="light"] .subtitle {
     0 0 14px rgba(255,255,255,0.85),
     0 0 28px rgba(255,255,255,0.6);
 }
-.subtitle.visible { opacity: 1; pointer-events: auto; }
+.subtitle.visible { opacity: 1; }
+/* ONLY enable drag-grabbing on devices that have a real mouse.
+   On touch devices the lyric must NEVER capture taps — otherwise it sits
+   on top of player controls and steals every tap. */
+@media (hover: hover) and (pointer: fine) {
+  .subtitle.visible { pointer-events: auto; }
+}
 .subtitle.dragging { cursor: grabbing; opacity: 0.75; transition: none; }
 
 /* ───────── Input ───────── */
@@ -824,9 +830,12 @@ html[data-theme="light"] .subtitle {
   .modal-dialog { padding: 18px; }
   .stat-grid    { grid-template-columns: repeat(2, 1fr); }
 
-  /* Intro card — fills the screen sensibly on phone, not covering nav */
-  .intro-card  { top: 70px; left: 12px; right: 12px; width: auto; height: 64vh; max-height: 64vh; }
+  /* Intro card — compact top card so it doesn't cover the player area below.
+     User can scroll inside to see the chat log. */
+  .intro-card  { top: 64px; left: 12px; right: 12px; width: auto; height: 40vh; max-height: 40vh; }
   .intro-close { width: 40px; height: 40px; font-size: 22px; }
+  .intro-mood  { font-size: 24px; }
+  .intro-wave  { height: 48px; }
 
   /* Queue: bigger taps, drag handle hidden (use buttons instead) */
   .q-row     { padding: 10px 8px; padding-left: 30px; gap: 10px; }
