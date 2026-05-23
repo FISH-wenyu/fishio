@@ -3,10 +3,11 @@
 // brain; this layer is here so the seam exists when ncm direct-search lands.
 import { buildPrompt } from "./context.js";
 import { ask, ClaudeError } from "./claude.js";
-import { appendMessage, enqueueAll, isBlacklisted } from "./state.js";
+import { appendMessage, enqueueAll, isBlacklisted, getQueue } from "./state.js";
 import { resolveQueries } from "./ncm.js";
 import { synthesize as ttsSynthesize, ttsConfigured } from "./tts.js";
 import { bus } from "./events.js";
+import { fillFromLibrary } from "./library.js";
 
 async function safeTts(text) {
   if (!ttsConfigured() || !text) return null;
@@ -66,6 +67,7 @@ export async function route({ input, trigger = "user" }) {
 
     if (ttsResult) bus.emit("tts", { url: ttsResult.url, text: out.say });
 
+    let enqueuedCount = 0;
     if (resolved.length) {
       resolved.forEach((r, i) => { r.reason = out.play[i]?.reason || ""; });
       // Drop anything the listener has blacklisted as a defensive net — the
@@ -73,7 +75,18 @@ export async function route({ input, trigger = "user" }) {
       const playable = resolved
         .filter(r => r.url)
         .filter(r => !isBlacklisted(r));
-      if (playable.length) await enqueueAll(playable);
+      if (playable.length) {
+        await enqueueAll(playable);
+        enqueuedCount = playable.length;
+      }
+    }
+    // If the brain gave us queries but NCM resolved 0 to a playable URL
+    // (rate limit, TLS failure, copyright nulls), fall back to the local
+    // library so the listener still gets music for this turn.
+    if (out.play.length > 0 && enqueuedCount === 0) {
+      console.warn(`[router] NCM resolved 0 of ${out.play.length} — library fallback`);
+      const got = await fillFromLibrary(Math.max(3, out.play.length));
+      console.log(`[router] library fallback added ${got} tracks`);
     }
     return { ...out, play: resolved, tts_url: ttsResult?.url || null };
   } catch (err) {

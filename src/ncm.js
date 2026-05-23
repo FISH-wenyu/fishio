@@ -18,6 +18,35 @@ function withCookie(args = {}) {
   return cookie ? { ...args, cookie } : args;
 }
 
+// NCM throws plain objects like { status, body: { code, msg } } — not Error
+// instances. Turn them into something readable.
+function describeNcmError(e) {
+  if (!e) return "(no error)";
+  if (typeof e === "string") return e;
+  if (e.message) return e.message;
+  if (e.body && (e.body.msg || e.body.message)) {
+    return `ncm ${e.status || e.body.code || ""} ${e.body.msg || e.body.message}`.trim();
+  }
+  try { return JSON.stringify(e).slice(0, 200); } catch { return String(e); }
+}
+
+// Retry transient failures (502, TLS handshake, socket errors) with exponential
+// backoff. Real "not found" responses (200 with empty results) don't throw, so
+// they aren't retried.
+async function withRetry(fn, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      lastErr = e;
+      const transient = e?.status >= 500 || /socket|TLS|ECONN|ETIME|EAI_AGAIN|disconnect/i.test(describeNcmError(e));
+      if (!transient || i === attempts - 1) throw e;
+      await new Promise(r => setTimeout(r, 400 * Math.pow(2, i)));
+    }
+  }
+  throw lastErr;
+}
+
 // Some songs return null url (no copyright / VIP-locked). We treat those as
 // unplayable and let the caller skip rather than throw.
 // Parse "Song - Artist" / "Song（原唱：Artist）" / "Song by Artist" into the
@@ -85,7 +114,7 @@ function coverPenalty(songName, songArtists, queryArtist) {
 async function searchOne(query) {
   // Bump limit from 10 → 20 so deeper matches survive when NCM ranks covers
   // higher (which is depressingly common for popular tracks).
-  const r = await search(withCookie({ keywords: query, limit: 20 }));
+  const r = await withRetry(() => search(withCookie({ keywords: query, limit: 20 })));
   const songs = r?.body?.result?.songs;
   if (!Array.isArray(songs) || songs.length === 0) return null;
 
@@ -116,7 +145,7 @@ async function searchOne(query) {
 async function getUrl(id) {
   // level: standard is fine for non-VIP. With a VIP-account cookie attached,
   // the API will return a URL for premium tracks too.
-  const r = await song_url_v1(withCookie({ id, level: "standard" }));
+  const r = await withRetry(() => song_url_v1(withCookie({ id, level: "standard" })));
   const url = r?.body?.data?.[0]?.url;
   return url || null;
 }
@@ -221,7 +250,7 @@ export async function resolveQueries(queries) {
         if (!t.url) return { query: q, ...t, error: "no stream url (copyright?)" };
         return { query: q, ...t };
       } catch (e) {
-        return { query: q, error: e.message || String(e) };
+        return { query: q, error: describeNcmError(e) };
       }
     })
   );

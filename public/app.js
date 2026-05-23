@@ -437,6 +437,8 @@ function openIntro(sayText, tracks) {
 
   buildWave();
   introPanel.setAttribute("aria-hidden", "false");
+  // Make sure we didn't drag it off-screen previously
+  requestAnimationFrame(clampIntoView);
 
   // Sentence stream — each sentence appears with a fake timestamp,
   // pacing roughly matches TTS reading speed (~3 words/sec).
@@ -470,7 +472,79 @@ function closeIntro() {
 }
 
 introClose.addEventListener("click", closeIntro);
-$("intro-backdrop").addEventListener("click", closeIntro);
+
+// ── Intro card drag-to-move ───────────────────────────────────────────────
+// The wave + hero strip is the drag handle (the log below is scrollable so we
+// don't want it to capture drags). Final position persists to localStorage.
+const INTRO_POS_KEY = "fishio.introPos";
+const introCard   = $("intro-card");
+const introHandle = $("intro-drag-handle");
+let introDrag = null;
+
+function applyIntroPos(pos) {
+  if (!pos) return;
+  introCard.style.left = pos.left;
+  introCard.style.top  = pos.top;
+  introCard.style.right = "auto";
+  introCard.style.bottom = "auto";
+}
+try { applyIntroPos(JSON.parse(localStorage.getItem(INTRO_POS_KEY) || "null")); } catch {}
+
+function clampIntoView() {
+  const r = introCard.getBoundingClientRect();
+  const pad = 8;
+  let { left, top } = r;
+  if (left + r.width  > window.innerWidth  - pad) left = window.innerWidth  - r.width  - pad;
+  if (top  + r.height > window.innerHeight - pad) top  = window.innerHeight - r.height - pad;
+  if (left < pad) left = pad;
+  if (top  < pad) top  = pad;
+  introCard.style.left = left + "px";
+  introCard.style.top  = top  + "px";
+  introCard.style.right = "auto";
+  introCard.style.bottom = "auto";
+}
+window.addEventListener("resize", () => { if (introPanel.getAttribute("aria-hidden") === "false") clampIntoView(); });
+
+function introDragStart(e) {
+  // Ignore clicks on the close button itself
+  if (e.target.closest(".intro-close")) return;
+  const point = e.touches ? e.touches[0] : e;
+  if (!point) return;
+  if (e.cancelable) e.preventDefault();
+  const rect = introCard.getBoundingClientRect();
+  introDrag = { x: point.clientX - rect.left, y: point.clientY - rect.top };
+  introCard.classList.add("dragging");
+  document.addEventListener("mousemove", introDragMove);
+  document.addEventListener("mouseup",   introDragEnd);
+  document.addEventListener("touchmove", introDragMove, { passive: false });
+  document.addEventListener("touchend",  introDragEnd);
+}
+function introDragMove(e) {
+  if (!introDrag) return;
+  const point = e.touches ? e.touches[0] : e;
+  if (!point) return;
+  if (e.cancelable) e.preventDefault();
+  introCard.style.left = (point.clientX - introDrag.x) + "px";
+  introCard.style.top  = (point.clientY - introDrag.y) + "px";
+  introCard.style.right = "auto";
+  introCard.style.bottom = "auto";
+}
+function introDragEnd() {
+  if (!introDrag) return;
+  introDrag = null;
+  introCard.classList.remove("dragging");
+  document.removeEventListener("mousemove", introDragMove);
+  document.removeEventListener("mouseup",   introDragEnd);
+  document.removeEventListener("touchmove", introDragMove);
+  document.removeEventListener("touchend",  introDragEnd);
+  clampIntoView();
+  localStorage.setItem(INTRO_POS_KEY, JSON.stringify({
+    left: introCard.style.left,
+    top:  introCard.style.top,
+  }));
+}
+introHandle.addEventListener("mousedown",  introDragStart);
+introHandle.addEventListener("touchstart", introDragStart, { passive: false });
 
 // ── Lyric overlay (synced to the music, draggable, no panel) ──────────────
 let lyricLines       = [];   // [{ ts: seconds, text }] sorted ascending
