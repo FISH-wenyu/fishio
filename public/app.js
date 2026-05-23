@@ -884,6 +884,15 @@ async function refreshSettings() {
     };
   } catch {}
 
+  // Voice input mode toggle — purely client-side, persists to localStorage.
+  const vTog = document.getElementById("voice-auto-submit");
+  if (vTog) {
+    vTog.checked = localStorage.getItem("fishio.voiceAutoSubmit") === "1";
+    vTog.onchange = () => {
+      localStorage.setItem("fishio.voiceAutoSubmit", vTog.checked ? "1" : "0");
+    };
+  }
+
   // NCM login status
   try {
     const s = await fetch("/api/ncm/login/status").then(r => r.json());
@@ -1173,8 +1182,19 @@ if (SR) {
     rec.onend = () => {
       btnMic.classList.remove("listening");
       rec = null;
-      // Auto-submit if speech produced text — feels like a real walkie-talkie.
-      if (input.value.trim()) form.requestSubmit();
+      // Two modes, settable in Settings → Voice Input:
+      //   walkie-talkie (auto-submit): straight to the DJ when you stop
+      //   review (default): drop into the input box, you edit + hit send
+      const text = input.value.trim();
+      if (!text) return;
+      const autoSubmit = localStorage.getItem("fishio.voiceAutoSubmit") === "1";
+      if (autoSubmit) {
+        form.requestSubmit();
+      } else {
+        input.focus();
+        input.setSelectionRange(text.length, text.length); // caret at end
+        flashStatus("voice → input · edit and send");
+      }
     };
     rec.onerror = () => { btnMic.classList.remove("listening"); rec = null; };
     rec.start();
