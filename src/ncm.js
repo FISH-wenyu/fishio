@@ -111,6 +111,15 @@ function coverPenalty(songName, songArtists, queryArtist) {
   return p;
 }
 
+// NCM hands us http:// URLs by default. On an HTTPS page (ngrok / cloudflared
+// public URL) browsers block mixed-content audio + images outright, so the
+// player stays silent and covers don't load. Their CDN serves the same paths
+// over HTTPS — just rewrite the scheme.
+function toHttps(url) {
+  if (!url || typeof url !== "string") return url;
+  return url.replace(/^http:\/\//i, "https://");
+}
+
 async function searchOne(query) {
   // Bump limit from 10 → 20 so deeper matches survive when NCM ranks covers
   // higher (which is depressingly common for popular tracks).
@@ -138,7 +147,7 @@ async function searchOne(query) {
     name:    pick.name,
     artists: (pick.artists || []).map(a => a.name),
     album:   pick.album?.name || "",
-    picUrl:  pick.album?.picUrl || pick.al?.picUrl || "",
+    picUrl:  toHttps(pick.album?.picUrl || pick.al?.picUrl || ""),
   };
 }
 
@@ -147,7 +156,7 @@ async function getUrl(id) {
   // the API will return a URL for premium tracks too.
   const r = await withRetry(() => song_url_v1(withCookie({ id, level: "standard" })));
   const url = r?.body?.data?.[0]?.url;
-  return url || null;
+  return url ? toHttps(url) : null;
 }
 
 async function getLyric(id) {

@@ -644,8 +644,18 @@ html[data-theme="light"] .subtitle {
 
 /* mic listening indicator */
 .icon-btn.listening {
-  color: var(--accent); border-color: var(--accent);
-  animation: pulse 1.2s infinite;
+  color: #ff4d6d; border-color: #ff4d6d;
+  background: rgba(255,77,109,0.08);
+  animation: pulse 0.9s infinite;
+}
+
+/* live recording dot — sits next to the input while mic is active */
+.live-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #ff4d6d; flex-shrink: 0;
+  box-shadow: 0 0 12px #ff4d6d;
+  animation: pulse 0.9s infinite;
+  align-self: center;
 }
 
 /* ───────── DJ modal ───────── */
