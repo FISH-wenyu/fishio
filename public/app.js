@@ -321,6 +321,9 @@ function appendSayMsg(text, ts = Date.now(), ttsUrl = null) {
 
   const wrap = document.createElement("div");
   wrap.className = "msg";
+  // Stash the text on the element so the WS "tts" handler can find it later
+  // and the replay click can always look up the freshest URL.
+  wrap.dataset.sayText = text;
   wrap.innerHTML = `
     <div class="avatar">F</div>
     <div class="body">
@@ -333,9 +336,21 @@ function appendSayMsg(text, ts = Date.now(), ttsUrl = null) {
     </div>`;
   wrap.querySelector(".bubble").textContent = text;
   const replayBtn = wrap.querySelector(".replay");
-  const url = ttsUrl || lastTtsByText.get(text);
-  if (!url) { replayBtn.disabled = true; replayBtn.style.opacity = "0.4"; }
-  replayBtn.addEventListener("click", () => { if (url) playTts(url, text); });
+  // Optimistic: enable if we already have the URL; otherwise enable as soon as
+  // the WS "tts" event arrives. The click handler ALWAYS looks up the URL
+  // fresh from lastTtsByText so it works even if it was unknown at creation.
+  const initialUrl = ttsUrl || lastTtsByText.get(text);
+  if (initialUrl) {
+    replayBtn.dataset.url = initialUrl;
+  } else {
+    replayBtn.disabled = true;
+    replayBtn.style.opacity = "0.4";
+  }
+  replayBtn.addEventListener("click", () => {
+    const u = replayBtn.dataset.url || lastTtsByText.get(text);
+    if (u) playTts(u, text);
+    else console.warn("[replay] no TTS URL for:", text);
+  });
 
   elLog.appendChild(wrap);
   elLog.scrollTop = elLog.scrollHeight;
@@ -1009,10 +1024,19 @@ function connectStream() {
         lastSayTs   = Date.now();
         appendSayMsg(msg.text, msg.ts || Date.now()); break;
       case "tts":
-        if (msg.text) lastTtsByText.set(msg.text, msg.url);
-        { // block scope for lastBubble
-          const lastBubble = elLog.querySelector(".msg:last-child .replay");
-          if (lastBubble) { lastBubble.disabled = false; lastBubble.style.opacity = "1"; }
+        if (msg.text) {
+          lastTtsByText.set(msg.text, msg.url);
+          // Enable EVERY message bubble whose text matches — not just the
+          // most recent one — and stash the URL on the button itself so the
+          // click handler always has it.
+          document.querySelectorAll(".msg[data-say-text]").forEach((node) => {
+            if (node.dataset.sayText !== msg.text) return;
+            const btn = node.querySelector(".replay");
+            if (!btn) return;
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            btn.dataset.url = msg.url;
+          });
         }
         playTts(msg.url, msg.text || "");
         break;
