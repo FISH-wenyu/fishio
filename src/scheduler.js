@@ -16,8 +16,10 @@ const SCHEDULES = [
   },
   {
     name: "hourly-mood-check",
-    // every hour at :00, but skip the slots we already cover above
-    cron: "0 10-23 * * *",
+    // every hour at :00 from 10am through 9pm. Skipped at night (22:00 / 23:00)
+    // so the radio doesn't randomly start broadcasting while the listener is
+    // trying to sleep. Adjust the range here if you keep different hours.
+    cron: "0 10-21 * * *",
     input: "Top of the hour. Look at the time of day and the recent plays; if the mood needs a turn, pick 1-2 tracks. If not, just say one short line without queuing anything.",
   },
 ];

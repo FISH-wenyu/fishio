@@ -6,6 +6,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
+
+// Force UTF-8 stdout/stderr on Windows so non-ASCII characters in logs
+// (em-dashes, Chinese, °, etc.) don't render as mojibake when the host
+// console code page is 936/GBK. No-op on macOS/Linux.
+if (process.platform === "win32") {
+  try { process.stdout.setDefaultEncoding?.("utf8"); } catch {}
+  try { process.stderr.setDefaultEncoding?.("utf8"); } catch {}
+}
 import { route } from "./router.js";
 import {
   getCurrent, getQueue, advance, currentWithFreshUrl,
@@ -21,6 +29,7 @@ import { attachStream } from "./stream.js";
 import { TTS_CACHE_DIR } from "./tts.js";
 import { createQr, checkQr, loginStatus, logout, resolveLyric } from "./ncm.js";
 import { getSnapshot as getWeather, weatherConfigured } from "./weather.js";
+import { brainStatus } from "./brains/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, "..", "public");
@@ -293,8 +302,12 @@ app.get("/api/taste/playlists", (_req, res) => {
 });
 
 // /api/meta — read-only config snapshot for the Settings drawer.
+// Intentionally does NOT expose CLAUDE_BIN, file paths, or anything else
+// that leaks the host's username / install layout — this endpoint is reachable
+// from any ngrok / cloudflared tunnel.
 app.get("/api/meta", async (_req, res) => {
   const weather = weatherConfigured() ? (await getWeather()) : null;
+  const brain = brainStatus();
   res.json({
     voice_id: process.env.ELEVENLABS_VOICE_ID || "",
     voice_model: process.env.ELEVENLABS_MODEL || "",
@@ -302,7 +315,11 @@ app.get("/api/meta", async (_req, res) => {
     weather_now: weather,
     weather_configured: weatherConfigured(),
     tts_configured: !!process.env.ELEVENLABS_API_KEY,
-    claude_bin: process.env.CLAUDE_BIN || "claude",
+    // brain
+    brain_primary:       brain.primary,
+    brain_fallback:      brain.fallback,
+    claude_configured:   brain.claude_configured,
+    deepseek_configured: brain.deepseek_configured,
     scheduler_off: process.env.SCHEDULER_OFF === "1",
   });
 });

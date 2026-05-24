@@ -13,6 +13,12 @@ state/*.out.log
 state/*.err.log
 state/*.err
 state/*.out
+state/logs/
+
+# Per-session hand-off notes — generated locally for AI agents to resume context,
+# not meant for the public repo. AGENTS.md is the long-term project memory; these
+# session notes are point-in-time snapshots.
+docs/session-*.md
 
 # Hash-keyed TTS cache (can be regenerated)
 cache/

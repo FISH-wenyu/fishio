@@ -10,7 +10,7 @@ Most music apps decide what you hear by what other people listen to. Fishio is t
 
 ## Features
 
-- 🧠 **Claude as DJ** — picks 1-3 songs per turn, writes a short DJ line, knows your taste / weather / time / what you've already heard / what you've favorited or hidden
+- 🧠 **Claude *or* DeepSeek as DJ** — picks 1-3 songs per turn, writes a short DJ line, knows your taste / weather / time / what you've already heard / what you've favorited or hidden. Pick one or run both with automatic fallback (see [docs/brain-deepseek.md](docs/brain-deepseek.md))
 - 🎵 **NetEase Music** — searches the catalog, prefers original artist over covers, refreshes stream URLs as they expire
 - 🗣️ **ElevenLabs voice** — text-to-speech for the DJ's lines, hash-cached so the same line is only synthesized once
 - 🌤️ **Weather aware** — OpenWeatherMap snapshot threaded into every prompt
@@ -153,6 +153,19 @@ ngrok http 8080 --url=<your-static>.ngrok-free.dev
 - If you're logged into NetEase, your account streams the music
 
 For real public deployment you'd need user accounts, per-user state, and a switch from Claude Code CLI subprocess to the Anthropic API (see [docs/setup.md](docs/setup.md#public-deployment) for the migration path).
+
+### Survive reboots (Windows)
+
+By default `npm start` is a foreground process — close the terminal or
+reboot and Fishio is gone. To register it (plus ngrok / cloudflared) as
+real Windows services that auto-start at boot, see
+[docs/autostart.md](docs/autostart.md). One-shot install:
+
+```powershell
+winget install --id NSSM.NSSM
+npm install -g @anthropic-ai/claude-code        # Fishio's brain
+npm run service:install                          # run as Administrator
+```
 
 ## Project layout
 

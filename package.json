@@ -1,13 +1,18 @@
 {
   "name": "fishio",
   "version": "0.0.1",
-  "description": "Fishio — personal AI radio. Claude Code as brain, NetEase Music for songs, Fish Audio for voice.",
+  "description": "Fishio — personal AI radio. Claude Code as brain, NetEase Music for songs, ElevenLabs for voice.",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
     "start": "node --env-file=.env src/server.js",
     "dev": "node --env-file=.env --watch src/server.js",
-    "tunnel": "ngrok http 8080 --url=$NGROK_DOMAIN"
+    "tunnel:ngrok": "ngrok http 8080",
+    "tunnel:cloudflared": "cloudflared tunnel --url http://localhost:8080",
+    "service:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-services.ps1",
+    "service:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/uninstall-services.ps1",
+    "service:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-setup.ps1",
+    "service:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-and-verify.ps1"
   },
   "dependencies": {
     "express": "^4.21.2",

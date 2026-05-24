@@ -16,8 +16,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const TTS_CACHE_DIR = join(__dirname, "..", "cache", "tts");
 
 const KEY      = process.env.ELEVENLABS_API_KEY || "";
-// Rachel is the classic default ElevenLabs starter voice; available on free tier.
-const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+// Matilda — warm, knowledgeable, handles Chinese acceptably. README + setup.md
+// both document this as Fishio's default; keep them all in sync.
+const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "XrExE9yKIg1WjnnlVkGX";
 const MODEL    = process.env.ELEVENLABS_MODEL    || "eleven_multilingual_v2";
 
 const STABILITY   = num(process.env.ELEVENLABS_STABILITY,   0.5);
